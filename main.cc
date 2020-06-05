@@ -41,9 +41,157 @@ using namespace gl;
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
 
+#include <opentok.h>
+#include <iostream>
+
+using namespace std;
 static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+}
+
+const char API_KEY[] = "";
+const char TOKEN[] = "";
+const char SESSION_ID[] = "";
+
+static otc_session* session = nullptr;
+static otc_publisher* publisher = nullptr;
+static otc_subscriber* subscriber = nullptr;
+otc_video_frame *last_frame = nullptr;
+otc_video_frame *last_sub_frame = nullptr;
+
+static void on_subscriber_error(otc_subscriber* subscriber,
+                                void *user_data,
+                                const char* error_string,
+                                enum otc_subscriber_error_code error) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+  std::cout << "Subscriber error. Error code: " << error_string << std::endl;
+}
+
+static void on_session_connected(otc_session *session, void *user_data) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+  otc_session_publish(session, publisher);
+}
+
+static void on_session_connection_created(otc_session *session,
+                                          void *user_data,
+                                          const otc_connection *connection) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+}
+
+static void on_session_connection_dropped(otc_session *session,
+                                          void *user_data,
+                                          const otc_connection *connection) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+}
+
+static void on_subscriber_render_frame(otc_subscriber *subscriber,
+                                       void *user_data,
+                                       const otc_video_frame *frame) {
+  if (last_sub_frame != nullptr) {
+//    otc_video_frame_delete(last_sub_frame);
+  }
+  last_sub_frame = otc_video_frame_convert(OTC_VIDEO_FRAME_FORMAT_ARGB32, frame);
+}
+
+static void on_session_stream_received(otc_session *session,
+                                       void *user_data,
+                                       const otc_stream *stream) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+  otc_subscriber_callbacks cb = {0};
+  cb.on_render_frame = on_subscriber_render_frame;
+  subscriber = otc_subscriber_new(stream, &cb);
+  otc_session_subscribe(session, subscriber);
+}
+
+static void on_session_stream_dropped(otc_session *session,
+                                      void *user_data,
+                                      const otc_stream *stream) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+}
+
+static void on_session_disconnected(otc_session *session, void *user_data) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+}
+
+static void on_session_error(otc_session *session,
+                             void *user_data,
+                             const char *error_string,
+                             enum otc_session_error_code error) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+  std::cout << "Session error. Error : " << error_string << std::endl;
+}
+static void on_otc_log_message(const char* message) {
+  std::cout <<  __FUNCTION__ << ":" << message << std::endl;
+}
+
+static void on_publisher_stream_created(otc_publisher *publisher,
+                                        void *user_data,
+                                        const otc_stream *stream) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+}
+
+
+static void on_publisher_render_frame(otc_publisher *publisher,
+                                      void *user_data,
+
+                                      const otc_video_frame *frame) {
+  if (last_frame != nullptr) {
+    otc_video_frame_delete(last_frame);
+  }
+  last_frame = otc_video_frame_convert(OTC_VIDEO_FRAME_FORMAT_ARGB32, frame);
+
+}
+
+static void on_publisher_stream_destroyed(otc_publisher *publisher,
+                                          void *user_data,
+                                          const otc_stream *stream) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+}
+
+static void on_publisher_error(otc_publisher *publisher,
+                               void *user_data,
+                               const char* error_string,
+                               enum otc_publisher_error_code error_code) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+  std::cout << "Publisher error. Error code: " << error_string << std::endl;
+}
+
+static void init_ot() {
+  if (otc_init(nullptr) != OTC_SUCCESS) {
+      std::cout << "Could not init OpenTok library" << std::endl;
+      return;
+    }
+    otc_log_set_logger_callback(on_otc_log_message);
+    otc_log_enable(OTC_LOG_LEVEL_INFO);
+
+    struct otc_session_callbacks session_callbacks = {0};
+    session_callbacks.on_connected = on_session_connected;
+    session_callbacks.on_connection_created = on_session_connection_created;
+    session_callbacks.on_connection_dropped = on_session_connection_dropped;
+    session_callbacks.on_stream_received = on_session_stream_received;
+    session_callbacks.on_stream_dropped = on_session_stream_dropped;
+    session_callbacks.on_disconnected = on_session_disconnected;
+    session_callbacks.on_error = on_session_error;
+    session = otc_session_new(API_KEY, SESSION_ID, &session_callbacks);
+    if (session == nullptr) {
+      cout << "ERROR creatng session";
+    }
+}
+
+void create_publisher() {
+    struct otc_publisher_callbacks publisher_callbacks = {0};
+    publisher_callbacks.on_stream_created = on_publisher_stream_created;
+    publisher_callbacks.on_render_frame = on_publisher_render_frame;
+    publisher_callbacks.on_stream_destroyed = on_publisher_stream_destroyed;
+    publisher_callbacks.on_error = on_publisher_error;
+    publisher = otc_publisher_new("name",
+                                  nullptr, /* Use WebRTC's video capturer. */
+                                  &publisher_callbacks);
+
+    if (publisher == nullptr) {
+      std::cout << "Error building publisher" << std::endl;
+    }
 }
 
 int main(int, char**)
@@ -52,6 +200,14 @@ int main(int, char**)
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
+
+    //uint8_t sampleImg[640 * 480 * 4];
+    //for (int i = 0 ; i < 640 * 480; i+=4) {
+    //  sampleImg[i] = 255;
+    //  sampleImg[i + 1] = 0;
+    //  sampleImg[i + 2] = 0;
+    //  sampleImg[i + 3] = 255;
+    //}
 
     // Decide GL+GLSL versions
 #if __APPLE__
@@ -71,7 +227,7 @@ int main(int, char**)
 #endif
 
     // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "opentok linux sample app", NULL, NULL);
     if (window == NULL)
         return 1;
     glfwMakeContextCurrent(window);
@@ -134,6 +290,7 @@ int main(int, char**)
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+    init_ot();
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
@@ -150,42 +307,91 @@ int main(int, char**)
         ImGui::NewFrame();
 
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+//        if (show_demo_window)
+//            ImGui::ShowDemoWindow(&show_demo_window);
 
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
-        {
-            static float f = 0.0f;
-            static int counter = 0;
+//        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
+//        {
+//            static float f = 0.0f;
+//            static int counter = 0;
+//
+//            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+//
+//            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+//            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+//            ImGui::Checkbox("Another Window", &show_another_window);
+//
+//            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+//            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+//
+//            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+//                counter++;
+//            ImGui::SameLine();
+//            ImGui::Text("counter = %d", counter);
+//
+//            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+//            ImGui::End();
+//        }
+//
+//        // 3. Show another simple window.
+//        if (show_another_window)
+//        {
+//            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+//            ImGui::Text("Hello from another window!");
+//            if (ImGui::Button("Close Me"))
+//                show_another_window = false;
+//            ImGui::End();
+//        }
 
-            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            ImGui::End();
+        ImGui::Begin("Control Panel");
+        if (ImGui::Button("Create Publisher")) {
+          cout << "Creating Publisher" << endl;
+          create_publisher();
+        }
+        if (ImGui::Button("Publish")) {
+          cout << "Publising..." << endl;
+          otc_session_publish(session, publisher);
+        }
+        if (ImGui::Button("Connect")) {
+          cout << "Connecting Session" << endl;
+          otc_session_connect(session, TOKEN);
+        }
+        ImGui::End();
+        if (last_sub_frame != nullptr) {
+          ImGui::Begin("Subscriber");
+          {
+            auto pixels = otc_video_frame_get_plane_binary_data(last_sub_frame, static_cast<enum otc_video_frame_plane>(0));
+            auto w = otc_video_frame_get_width(last_sub_frame);
+            auto h = otc_video_frame_get_height(last_sub_frame);
+            GLuint image_texture;
+            glGenTextures(1, &image_texture);
+            glBindTexture(GL_TEXTURE_2D, image_texture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+            ImGui::Image((void *)(intptr_t)image_texture, ImVec2(w, h));
+          }
+          ImGui::End();
         }
 
-        // 3. Show another simple window.
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
+        if (last_frame != nullptr) {
+          ImGui::Begin("Publisher");
+          {
+            auto pixels = otc_video_frame_get_plane_binary_data(last_frame, static_cast<enum otc_video_frame_plane>(0));
+            auto w = otc_video_frame_get_width(last_frame);
+            auto h = otc_video_frame_get_height(last_frame);
+            GLuint image_texture;
+            glGenTextures(1, &image_texture);
+            glBindTexture(GL_TEXTURE_2D, image_texture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+            ImGui::Image((void *)(intptr_t)image_texture, ImVec2(w, h));
+          }
+          ImGui::End();
         }
-
         // Rendering
         ImGui::Render();
         int display_w, display_h;
