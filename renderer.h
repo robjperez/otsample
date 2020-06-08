@@ -2,6 +2,8 @@
 #include <string>
 #include <mutex>
 
+#include <GL/glew.h>
+
 class Renderer {
 public:
     Renderer(const std::string name);
@@ -13,4 +15,5 @@ private:
     otc_video_frame* last_frame;
     std::string name;
     std::mutex mutex;
+    GLuint image_texture;
 };

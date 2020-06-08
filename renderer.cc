@@ -1,6 +1,5 @@
 #include "renderer.h"
 #include "imgui.h"
-#include <GL/glew.h>
 
 #include <iostream>
 
@@ -11,6 +10,14 @@ using namespace std;
 Renderer::Renderer(const std::string name) {
     this->last_frame = nullptr;
     this->name = name;
+
+    // OpenGL initialization
+    glGenTextures(1, &this->image_texture);
+    glBindTexture(GL_TEXTURE_2D, image_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void Renderer::render() {
@@ -25,13 +32,7 @@ void Renderer::render() {
         auto w = otc_video_frame_get_width(this->last_frame);
         auto h = otc_video_frame_get_height(this->last_frame);
 
-
-        GLuint image_texture;
-        glGenTextures(1, &image_texture);
         glBindTexture(GL_TEXTURE_2D, image_texture);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
         ImGui::Image((void *)(intptr_t)image_texture, ImVec2(w, h));
         this->mutex.unlock();
