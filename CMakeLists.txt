@@ -16,7 +16,7 @@ pkg_check_modules(OPENTOK REQUIRED libopentok)
 
 set(TARGET sample)
 
-add_executable(${TARGET} main.cc)
+add_executable(${TARGET} main.cc renderer.cc)
 
 target_link_libraries(${TARGET}
   imgui
