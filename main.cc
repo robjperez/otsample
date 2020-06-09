@@ -17,16 +17,13 @@
 #include <memory>
 
 #include "renderer.h"
+#include "session_info.h"
 
 using namespace std;
 static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
-
-const char API_KEY[] = "";
-const char TOKEN[] = "";
-const char SESSION_ID[] = "";
 
 map<string, unique_ptr<Renderer>> renderer_map;
 
