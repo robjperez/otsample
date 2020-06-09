@@ -18,6 +18,7 @@
 
 #include "renderer.h"
 #include "session_info.h"
+#include "ui_state.h"
 
 using namespace std;
 static void glfw_error_callback(int error, const char* description)
@@ -25,12 +26,19 @@ static void glfw_error_callback(int error, const char* description)
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
 
+/**
+ * Static vars
+ */
 map<string, unique_ptr<Renderer>> renderer_map;
+UIState ui_state;
 
 static otc_session* session = nullptr;
 static otc_publisher* publisher = nullptr;
 static otc_subscriber* subscriber = nullptr;
 
+/**
+ * Subscriber Callbacks
+ */
 static void on_subscriber_error(otc_subscriber* subscriber,
                                 void *user_data,
                                 const char* error_string,
@@ -39,9 +47,23 @@ static void on_subscriber_error(otc_subscriber* subscriber,
   std::cout << "Subscriber error. Error code: " << error_string << std::endl;
 }
 
+static void on_subscriber_render_frame(otc_subscriber *subscriber,
+                                       void *user_data,
+                                       const otc_video_frame *frame) {
+  otc_stream* stream = otc_subscriber_get_stream(subscriber);
+  string streamId(otc_stream_get_id(stream));
+
+  renderer_map[streamId]->set_frame(frame);
+}
+
+
+/**
+ * Session Callbacks
+ */
 static void on_session_connected(otc_session *session, void *user_data) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
-  otc_session_publish(session, publisher);
+
+  ui_state.isSessionConnected = true;
 }
 
 static void on_session_connection_created(otc_session *session,
@@ -54,15 +76,6 @@ static void on_session_connection_dropped(otc_session *session,
                                           void *user_data,
                                           const otc_connection *connection) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
-}
-
-static void on_subscriber_render_frame(otc_subscriber *subscriber,
-                                       void *user_data,
-                                       const otc_video_frame *frame) {
-  otc_stream* stream = otc_subscriber_get_stream(subscriber);
-  string streamId(otc_stream_get_id(stream));
-
-  renderer_map[streamId]->set_frame(frame);
 }
 
 static void on_session_stream_received(otc_session *session,
@@ -88,6 +101,7 @@ static void on_session_stream_dropped(otc_session *session,
 
 static void on_session_disconnected(otc_session *session, void *user_data) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
+  ui_state.isSessionConnected = false;
 }
 
 static void on_session_error(otc_session *session,
@@ -97,10 +111,11 @@ static void on_session_error(otc_session *session,
   std::cout << __FUNCTION__ << " callback function" << std::endl;
   std::cout << "Session error. Error : " << error_string << std::endl;
 }
-static void on_otc_log_message(const char* message) {
-  std::cout <<  __FUNCTION__ << ":" << message << std::endl;
-}
 
+
+/**
+ * Publisher Callbacks
+ */
 static void on_publisher_stream_created(otc_publisher *publisher,
                                         void *user_data,
                                         const otc_stream *stream) {
@@ -129,6 +144,13 @@ static void on_publisher_error(otc_publisher *publisher,
                                enum otc_publisher_error_code error_code) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
   std::cout << "Publisher error. Error code: " << error_string << std::endl;
+}
+
+/**
+ * Utility OT functions
+ */
+static void on_otc_log_message(const char* message) {
+  std::cout <<  __FUNCTION__ << ":" << message << std::endl;
 }
 
 static void init_ot() {
@@ -260,9 +282,14 @@ int main(int, char**)
         cout << "Publising..." << endl;
         otc_session_publish(session, publisher);
       }
-      if (ImGui::Button("Connect")) {
-        cout << "Connecting Session" << endl;
-        otc_session_connect(session, TOKEN);
+      if (ImGui::Button(ui_state.connectButtonText().c_str())) {
+        if (ui_state.isSessionConnected) {
+          cout << "Disconnecting Session" << endl;
+          otc_session_disconnect(session);
+        } else {
+          cout << "Connecting Session" << endl;
+          otc_session_connect(session, TOKEN);
+        }
       }
       ImGui::End();
 
