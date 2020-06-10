@@ -86,7 +86,11 @@ static void on_session_stream_received(otc_session *session,
   cb.on_render_frame = on_subscriber_render_frame;
 
   string streamId(otc_stream_get_id(stream));
-  unique_ptr<Renderer> ptr(new Renderer(streamId));
+  // Create an empty placeholder for the renderer
+  // This callback is not called in the main thread so we cannot
+  // create the renderer here
+  // The main loop will create a renderer for the stream
+  unique_ptr<Renderer> ptr;
   renderer_map[streamId] = std::move(ptr);
 
   subscriber = otc_subscriber_new(stream, &cb);
@@ -182,7 +186,11 @@ void create_publisher() {
     publisher_callbacks.on_stream_destroyed = on_publisher_stream_destroyed;
     publisher_callbacks.on_error = on_publisher_error;
 
-    unique_ptr<Renderer> ptr(new Renderer("PUBLISHER"));
+    // Create an empty placeholder for the renderer
+    // This callback is not called in the main thread so we cannot
+    // create the renderer here
+    // The main loop will create a renderer for the stream
+    unique_ptr<Renderer> ptr;
     renderer_map["PUBLISHER"] = std::move(ptr);
 
     publisher = otc_publisher_new("name",
@@ -228,21 +236,7 @@ int main(int, char**)
     glfwSwapInterval(1); // Enable vsync
 
     // Initialize OpenGL loader
-#if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
-    bool err = gl3wInit() != 0;
-#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLEW)
     bool err = glewInit() != GLEW_OK;
-#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
-    bool err = gladLoadGL() == 0;
-#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING2)
-    bool err = false;
-    glbinding::Binding::initialize();
-#elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING3)
-    bool err = false;
-    glbinding::initialize([](const char* name) { return (glbinding::ProcAddress)glfwGetProcAddress(name); });
-#else
-    bool err = false; // If you use IMGUI_IMPL_OPENGL_LOADER_CUSTOM, your loader is likely to requires some form of initialization.
-#endif
     if (err)
     {
         fprintf(stderr, "Failed to initialize OpenGL loader!\n");
@@ -293,8 +287,14 @@ int main(int, char**)
       }
       ImGui::End();
 
+      // Render Pub and Subs
       for (auto const& el : renderer_map) {
-        el.second->render();
+        if (el.second == nullptr) {
+          unique_ptr<Renderer> ptr(new Renderer(el.first));
+          renderer_map[el.first] = std::move(ptr);
+        } else {
+          el.second->render();
+        }
       }
 
       // Rendering
