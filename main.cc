@@ -202,6 +202,14 @@ void create_publisher() {
     if (publisher == nullptr) {
       std::cout << "Error building publisher" << std::endl;
     }
+    otc_session_publish(session, publisher);
+}
+
+void unpublish() {
+  if(publisher != nullptr && session != nullptr) {
+      std::cout << "Unpublishing" << endl;
+      otc_session_unpublish(session, publisher);
+  }
 }
 
 int main(int, char**)
@@ -211,6 +219,8 @@ int main(int, char**)
     if (!glfwInit())
         return 1;
 
+  otc_log_set_logger_callback(on_otc_log_message);
+  otc_log_enable(OTC_LOG_LEVEL_INFO);
     // Decide GL+GLSL versions
 #if __APPLE__
     // GL 3.2 + GLSL 150
@@ -268,14 +278,6 @@ int main(int, char**)
 //    ImGui::ShowDemoWindow(&show_demo_window);
 
       ImGui::Begin("Control Panel");
-      if (ImGui::Button("Create Publisher")) {
-        cout << "Creating Publisher" << endl;
-        create_publisher();
-      }
-      if (ImGui::Button("Publish")) {
-        cout << "Publising..." << endl;
-        otc_session_publish(session, publisher);
-      }
       if (ImGui::Button(ui_state.connectButtonText().c_str())) {
         if (ui_state.isSessionConnected) {
           cout << "Disconnecting Session" << endl;
@@ -284,6 +286,19 @@ int main(int, char**)
           cout << "Connecting Session" << endl;
           otc_session_connect(session, TOKEN);
         }
+      }
+
+      if (ImGui::Button(ui_state.publishButtonText().c_str())) {
+        if(!ui_state.isPublishing) {
+          cout << "Creating Publisher" << endl;
+          create_publisher();
+          ui_state.isPublishing = true;
+        } else {
+          cout << "Unpublishing" << endl;
+          unpublish();
+          ui_state.isPublishing = false;
+        }
+        
       }
       ImGui::End();
 
