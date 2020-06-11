@@ -56,6 +56,10 @@ static void on_subscriber_render_frame(otc_subscriber *subscriber,
   renderer_map[streamId]->set_frame(frame);
 }
 
+static void on_subscriber_reconnected(otc_subscriber * subscriber, void *user_data) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+}
+
 
 /**
  * Session Callbacks
@@ -82,8 +86,9 @@ static void on_session_stream_received(otc_session *session,
                                        void *user_data,
                                        const otc_stream *stream) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
-  otc_subscriber_callbacks cb = {0};
-  cb.on_render_frame = on_subscriber_render_frame;
+  otc_subscriber_callbacks subscriber_callbacks = {0};
+  subscriber_callbacks.on_render_frame = on_subscriber_render_frame;
+  subscriber_callbacks.on_reconnected = on_subscriber_reconnected;
 
   string streamId(otc_stream_get_id(stream));
   // Create an empty placeholder for the renderer
@@ -93,7 +98,7 @@ static void on_session_stream_received(otc_session *session,
   unique_ptr<Renderer> ptr;
   renderer_map[streamId] = std::move(ptr);
 
-  subscriber = otc_subscriber_new(stream, &cb);
+  subscriber = otc_subscriber_new(stream, &subscriber_callbacks);
   otc_session_subscribe(session, subscriber);
 }
 
@@ -114,6 +119,14 @@ static void on_session_error(otc_session *session,
                              enum otc_session_error_code error) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
   std::cout << "Session error. Error : " << error_string << std::endl;
+}
+
+static void on_session_reconnection_started(otc_session *session, void *user_data) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
+}
+
+static void on_session_reconnected(otc_session *session, void *user_data) {
+  std::cout << __FUNCTION__ << " callback function" << std::endl;
 }
 
 
@@ -173,6 +186,8 @@ static void init_ot() {
     session_callbacks.on_stream_dropped = on_session_stream_dropped;
     session_callbacks.on_disconnected = on_session_disconnected;
     session_callbacks.on_error = on_session_error;
+    session_callbacks.on_reconnection_started = on_session_reconnection_started;
+    session_callbacks.on_reconnected = on_session_reconnected;
     session = otc_session_new(API_KEY, SESSION_ID, &session_callbacks);
     if (session == nullptr) {
       cout << "ERROR creatng session" << endl;
@@ -202,6 +217,14 @@ void create_publisher() {
     if (publisher == nullptr) {
       std::cout << "Error building publisher" << std::endl;
     }
+    otc_session_publish(session, publisher);
+}
+
+void unpublish() {
+  if(publisher != nullptr && session != nullptr) {
+      std::cout << "Unpublishing" << endl;
+      otc_session_unpublish(session, publisher);
+  }
 }
 
 int main(int, char**)
@@ -211,6 +234,8 @@ int main(int, char**)
     if (!glfwInit())
         return 1;
 
+  otc_log_set_logger_callback(on_otc_log_message);
+  otc_log_enable(OTC_LOG_LEVEL_INFO);
     // Decide GL+GLSL versions
 #if __APPLE__
     // GL 3.2 + GLSL 150
@@ -268,14 +293,6 @@ int main(int, char**)
 //    ImGui::ShowDemoWindow(&show_demo_window);
 
       ImGui::Begin("Control Panel");
-      if (ImGui::Button("Create Publisher")) {
-        cout << "Creating Publisher" << endl;
-        create_publisher();
-      }
-      if (ImGui::Button("Publish")) {
-        cout << "Publising..." << endl;
-        otc_session_publish(session, publisher);
-      }
       if (ImGui::Button(ui_state.connectButtonText().c_str())) {
         if (ui_state.isSessionConnected) {
           cout << "Disconnecting Session" << endl;
@@ -284,6 +301,19 @@ int main(int, char**)
           cout << "Connecting Session" << endl;
           otc_session_connect(session, TOKEN);
         }
+      }
+
+      if (ImGui::Button(ui_state.publishButtonText().c_str())) {
+        if(!ui_state.isPublishing) {
+          cout << "Creating Publisher" << endl;
+          create_publisher();
+          ui_state.isPublishing = true;
+        } else {
+          cout << "Unpublishing" << endl;
+          unpublish();
+          ui_state.isPublishing = false;
+        }
+        
       }
       ImGui::End();
 
