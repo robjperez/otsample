@@ -4,6 +4,10 @@ class UIState {
 public:
   bool isSessionConnected;
   bool isPublishing;
+  bool showPublisherButtons;
+
+  bool isSubscribing;
+  bool showSubscriberButtons;
 
   UIState() : isSessionConnected(false) {};
 
@@ -13,5 +17,9 @@ public:
 
   const std::string publishButtonText() {
     return this->isPublishing ? "Unpublish" : "Publish";
+  }
+
+  const std::string subscriberButtonText() {
+    return this->isSubscribing ? "Unsubscribe" : "Subscribe";
   }
 };
