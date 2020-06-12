@@ -36,6 +36,16 @@ static otc_session* session = nullptr;
 static otc_publisher* publisher = nullptr;
 static otc_subscriber* subscriber = nullptr;
 
+void hidePublisherButton() {
+    ui_state.showPublisherButtons = false;
+    ui_state.isPublishing = false;
+}
+
+void hideSubscriberButton() {
+    ui_state.isSubscribing = false;
+    ui_state.showSubscriberButtons = false;
+}
+
 /**
  * Subscriber Callbacks
  */
@@ -45,6 +55,7 @@ static void on_subscriber_error(otc_subscriber* subscriber,
                                 enum otc_subscriber_error_code error) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
   std::cout << "Subscriber error. Error code: " << error_string << std::endl;
+  ui_state.isSubscribing = false;
 }
 
 static void on_subscriber_render_frame(otc_subscriber *subscriber,
@@ -68,6 +79,7 @@ static void on_session_connected(otc_session *session, void *user_data) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
 
   ui_state.isSessionConnected = true;
+  ui_state.showPublisherButtons = true;
 }
 
 static void on_session_connection_created(otc_session *session,
@@ -99,7 +111,7 @@ static void on_session_stream_received(otc_session *session,
   renderer_map[streamId] = std::move(ptr);
 
   subscriber = otc_subscriber_new(stream, &subscriber_callbacks);
-  otc_session_subscribe(session, subscriber);
+  ui_state.showSubscriberButtons = true;
 }
 
 static void on_session_stream_dropped(otc_session *session,
@@ -111,6 +123,8 @@ static void on_session_stream_dropped(otc_session *session,
 static void on_session_disconnected(otc_session *session, void *user_data) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
   ui_state.isSessionConnected = false;
+  hidePublisherButton();
+  hideSubscriberButton();
 }
 
 static void on_session_error(otc_session *session,
@@ -119,6 +133,8 @@ static void on_session_error(otc_session *session,
                              enum otc_session_error_code error) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
   std::cout << "Session error. Error : " << error_string << std::endl;
+  hidePublisherButton();
+  hideSubscriberButton();
 }
 
 static void on_session_reconnection_started(otc_session *session, void *user_data) {
@@ -153,6 +169,7 @@ static void on_publisher_stream_destroyed(otc_publisher *publisher,
                                           void *user_data,
                                           const otc_stream *stream) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
+  ui_state.isPublishing = false;
 }
 
 static void on_publisher_error(otc_publisher *publisher,
@@ -161,6 +178,7 @@ static void on_publisher_error(otc_publisher *publisher,
                                enum otc_publisher_error_code error_code) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
   std::cout << "Publisher error. Error code: " << error_string << std::endl;
+  ui_state.isPublishing = false;
 }
 
 /**
@@ -226,6 +244,7 @@ void unpublish() {
       otc_session_unpublish(session, publisher);
   }
 }
+
 
 int main(int, char**)
 {
@@ -303,7 +322,7 @@ int main(int, char**)
         }
       }
 
-      if (ImGui::Button(ui_state.publishButtonText().c_str())) {
+      if (ui_state.showPublisherButtons && ImGui::Button(ui_state.publishButtonText().c_str())) {
         if(!ui_state.isPublishing) {
           cout << "Creating Publisher" << endl;
           create_publisher();
@@ -312,6 +331,18 @@ int main(int, char**)
           cout << "Unpublishing" << endl;
           unpublish();
           ui_state.isPublishing = false;
+        }
+      }
+
+      if (ui_state.showSubscriberButtons && ImGui::Button(ui_state.subscriberButtonText().c_str())) {
+        if(!ui_state.isSubscribing) {
+          cout << "Creating Subscriber" << endl;
+          otc_session_subscribe(session, subscriber);
+          ui_state.isSubscribing = true;
+        } else {
+          cout << "Unsubscribing" << endl;
+          otc_session_unsubscribe(session, subscriber);
+          ui_state.isSubscribing = false;
         }
         
       }
