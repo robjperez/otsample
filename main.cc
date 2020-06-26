@@ -328,10 +328,13 @@ int main(int, char**)
           create_publisher();
           ui_state.isPublishing = true;
         } else {
-          cout << "Unpublishing" << endl;
           unpublish();
           ui_state.isPublishing = false;
         }
+
+      
+
+
       }
 
       if (ui_state.showSubscriberButtons && ImGui::Button(ui_state.subscriberButtonText().c_str())) {
