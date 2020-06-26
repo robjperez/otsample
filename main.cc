@@ -331,10 +331,6 @@ int main(int, char**)
           unpublish();
           ui_state.isPublishing = false;
         }
-
-      
-
-
       }
 
       if (ui_state.showSubscriberButtons && ImGui::Button(ui_state.subscriberButtonText().c_str())) {
