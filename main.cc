@@ -31,6 +31,10 @@ static void glfw_error_callback(int error, const char* description)
  */
 map<string, unique_ptr<Renderer>> renderer_map;
 UIState ui_state;
+static bool publishVideo = true;
+static bool publishAudio = true;
+static bool subscriberVideo = true;
+static bool subscriberAudio = true;
 
 static otc_session* session = nullptr;
 static otc_publisher* publisher = nullptr;
@@ -46,6 +50,21 @@ void hideSubscriberButton() {
     ui_state.showSubscriberButtons = false;
 }
 
+void setPublisherAudio() {
+    otc_publisher_set_publish_audio(publisher, publishAudio);
+}
+
+void setPublisherVideo() {
+    otc_publisher_set_publish_video(publisher, publishVideo);
+}
+
+void setSubscriberAudio() {
+    otc_subscriber_set_subscribe_to_audio(subscriber, subscriberAudio);
+}
+
+void setSubscriberVideo() {
+    otc_subscriber_set_subscribe_to_video(subscriber, subscriberVideo);
+}
 /**
  * Subscriber Callbacks
  */
@@ -77,7 +96,6 @@ static void on_subscriber_reconnected(otc_subscriber * subscriber, void *user_da
  */
 static void on_session_connected(otc_session *session, void *user_data) {
   std::cout << __FUNCTION__ << " callback function" << std::endl;
-
   ui_state.isSessionConnected = true;
   ui_state.showPublisherButtons = true;
 }
@@ -235,7 +253,13 @@ void create_publisher() {
     if (publisher == nullptr) {
       std::cout << "Error building publisher" << std::endl;
     }
-    otc_session_publish(session, publisher);
+}
+
+void publish() {
+  if(publisher != nullptr && session != nullptr) {
+      std::cout << "Publishing" << endl;
+      otc_session_publish(session, publisher);
+  }
 }
 
 void unpublish() {
@@ -319,18 +343,27 @@ int main(int, char**)
         } else {
           cout << "Connecting Session" << endl;
           otc_session_connect(session, TOKEN);
+          create_publisher();
         }
       }
 
       if (ui_state.showPublisherButtons && ImGui::Button(ui_state.publishButtonText().c_str())) {
         if(!ui_state.isPublishing) {
           cout << "Creating Publisher" << endl;
-          create_publisher();
+          publish();
           ui_state.isPublishing = true;
         } else {
           unpublish();
           ui_state.isPublishing = false;
         }
+      }
+       
+      if(ui_state.showPublisherButtons && ImGui::Checkbox("Publisher Audio", &publishAudio)) {
+        setPublisherAudio();
+      }
+
+       if(ui_state.showPublisherButtons && ImGui::Checkbox("Publisher Video", &publishVideo)) {
+        setPublisherVideo();
       }
 
       if (ui_state.showSubscriberButtons && ImGui::Button(ui_state.subscriberButtonText().c_str())) {
@@ -343,7 +376,14 @@ int main(int, char**)
           otc_session_unsubscribe(session, subscriber);
           ui_state.isSubscribing = false;
         }
-        
+      }
+
+      if(ui_state.showSubscriberButtons && ImGui::Checkbox("Subscriber Audio", &subscriberAudio)) {
+        setSubscriberAudio();
+      }
+
+      if(ui_state.showSubscriberButtons && ImGui::Checkbox("Subscriber Video", &subscriberVideo)) {
+        setSubscriberVideo();
       }
       ImGui::End();
 
